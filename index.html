@@ -52,7 +52,8 @@
   <div id="episodes"></div>
 
   <script>
-    const rssUrl = 'https://cloud.mave.digital/40395';
+    const rssUrl = 'https://api.allorigins.win/raw?url=https://cloud.mave.digital/feed/40395';
+
 
     fetch(rssUrl)
       .then(res => res.text())
