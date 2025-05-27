@@ -1,50 +1,105 @@
-<script>
-  const rssUrl = 'https://cloud.mave.digital/feed/40395';
-  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Мой подкаст</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .episode {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .episode h2 {
+      margin: 0 0 10px;
+      font-size: 1.5em;
+      color: #1a73e8;
+    }
+    .episode p {
+      margin: 5px 0;
+      color: #555;
+    }
+    .episode audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .loading {
+      text-align: center;
+      font-size: 1.2em;
+      color: #777;
+    }
+    .error {
+      text-align: center;
+      color: red;
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Мой подкаст</h1>
+  <div id="episodes" class="loading">Загрузка эпизодов...</div>
 
-  fetch(proxyUrl)
-    .then(res => res.json())
-    .then(data => {
-      const str = data.contents;
-      const xml = new window.DOMParser().parseFromString(str, "text/xml");
-      const items = Array.from(xml.querySelectorAll("item"));
-      const seasons = {};
+  <script>
+    async function loadPodcastEpisodes() {
+      const episodesContainer = document.getElementById('episodes');
+      const rssUrl = 'https://cloud.mave.digital/40395';
 
-      items.forEach(item => {
-        const title = item.querySelector("title")?.textContent || "";
-        const description = item.querySelector("description")?.textContent || "";
-        const pubDate = new Date(item.querySelector("pubDate")?.textContent || "");
-        const duration = item.querySelector("itunes\\:duration")?.textContent || "";
-        const season = item.querySelector("itunes\\:season")?.textContent || "1";
+      try {
+        const response = await fetch(rssUrl);
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'application/xml');
 
-        if (!seasons[season]) seasons[season] = [];
+        // Проверяем на ошибки парсинга
+        if (xml.querySelector('parsererror')) {
+          throw new Error('Ошибка парсинга RSS-фида');
+        }
 
-        seasons[season].push({ title, description, pubDate, duration });
-      });
+        const items = xml.querySelectorAll('item');
+        episodesContainer.innerHTML = '';
 
-      const container = document.getElementById("episodes");
+        if (items.length === 0) {
+          episodesContainer.innerHTML = '<p>Эпизоды не найдены.</p>';
+          return;
+        }
 
-      Object.keys(seasons).sort((a, b) => b - a).forEach(season => {
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = `Сезон ${season}`;
-        details.appendChild(summary);
+        items.forEach(item => {
+          const title = item.querySelector('title')?.textContent || 'Без названия';
+          const description = item.querySelector('description')?.textContent || 'Описание отсутствует';
+          const pubDate = item.querySelector('pubDate')?.textContent || 'Дата неизвестна';
+          const audioUrl = item.querySelector('enclosure')?.getAttribute('url') || '';
 
-        seasons[season].forEach(ep => {
-          const div = document.createElement("div");
-          div.className = "episode";
-          div.innerHTML = `
-            <div class="episode-title">${ep.title}</div>
-            <div class="episode-meta">Дата: ${ep.pubDate.toLocaleDateString()} | Длительность: ${ep.duration}</div>
+          const episodeDiv = document.createElement('div');
+          episodeDiv.className = 'episode';
+          episodeDiv.innerHTML = `
+            <h2>${title}</h2>
+            <p><strong>Дата публикации:</strong> ${new Date(pubDate).toLocaleDateString('ru-RU')}</p>
+            <p>${description}</p>
+            ${audioUrl ? `<audio controls src="${audioUrl}"></audio>` : '<p>Аудио недоступно</p>'}
           `;
-          details.appendChild(div);
+          episodesContainer.appendChild(episodeDiv);
         });
+      } catch (error) {
+        console.error('Ошибка загрузки RSS:', error);
+        episodesContainer.innerHTML = `<p class="error">Не удалось загрузить эпизоды: ${error.message}</p>`;
+      }
+    }
 
-        container.appendChild(details);
-      });
-    })
-    .catch(err => {
-      document.getElementById("episodes").innerText = 'Не удалось загрузить список эпизодов.\n\n' + err.message;
-      console.error('Ошибка:', err);
-    });
-</script>
+    // Загружаем эпизоды при загрузке страницы
+    window.onload = loadPodcastEpisodes;
+  </script>
+</body>
+</html>
