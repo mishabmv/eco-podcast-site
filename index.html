@@ -11,7 +11,7 @@
 </head>
 <body>
 
-  <h1 id="podcast-title"></h1>
+  <h1 id="podcast-title">Подкаст</h1>
   <p id="podcast-description"></p>
 
   <div id="episodes"></div>
@@ -21,18 +21,46 @@
     const episodesCsvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRS9tUcKNqA8bLHqKF89gR6YwKyDwOoq4ldzdMN6jTbDIFLtGvYfyqyF7ENtXd3t4EZvcoKMlYqe5M0/pub?gid=0&single=true&output=csv';
 
     function parseCSV(text) {
-      return text.trim().split('\n').map(row =>
-        row.split(',').map(cell => cell.replace(/^"|"$/g, '').replace(/""/g, '"'))
-      );
+      const rows = [];
+      let insideQuotes = false;
+      let row = [];
+      let cell = '';
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const nextChar = text[i + 1];
+
+        if (char === '"' && nextChar === '"') {
+          cell += '"';
+          i++;
+        } else if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          row.push(cell);
+          cell = '';
+        } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+          if (cell || row.length) {
+            row.push(cell);
+            rows.push(row);
+            row = [];
+            cell = '';
+          }
+        } else {
+          cell += char;
+        }
+      }
+      if (cell || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+      return rows.filter(r => r.some(c => c.trim() !== ''));
     }
 
-    // Загрузить и отобразить метаданные
     fetch(metaCsvUrl)
       .then(res => res.text())
       .then(text => {
         const rows = parseCSV(text);
         const headers = rows[0];
-        const values = rows[1];
+        const values = rows[1] || [];
         const meta = Object.fromEntries(headers.map((h, i) => [h.trim(), values[i]]));
 
         document.getElementById('podcast-title').textContent = meta.title || 'Подкаст';
@@ -46,25 +74,27 @@
         }
       });
 
-    // Загрузить и отобразить эпизоды
     fetch(episodesCsvUrl)
       .then(res => res.text())
       .then(text => {
         const rows = parseCSV(text);
         const headers = rows[0];
         const episodes = rows.slice(1).map(row =>
-          Object.fromEntries(headers.map((h, i) => [h.trim(), row[i]]))
+          Object.fromEntries(headers.map((h, i) => [h.trim(), row[i] || '']))
         );
 
         const container = document.getElementById("episodes");
         episodes.forEach(ep => {
+          const title = ep.title?.trim();
+          if (!title) return;
+
           const div = document.createElement("div");
           div.className = "episode";
           div.innerHTML = `
-            <h3>${ep.title}</h3>
+            <h3>${title}</h3>
             <p><strong>Дата:</strong> ${ep.pubDate || "—"} | <strong>Длительность:</strong> ${ep["itunes:duration"] || "—"}</p>
             <p>${ep.description || ep["content:encoded"] || ""}</p>
-            <audio controls src="${ep.enclosure || ""}"></audio>
+            ${ep.enclosure ? `<audio controls src="${ep.enclosure}"></audio>` : ''}
           `;
           container.appendChild(div);
         });
